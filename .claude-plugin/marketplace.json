@@ -1,0 +1,37 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "agex-marketplace",
+  "owner": {
+    "name": "saksham-eng560",
+    "url": "https://github.com/saksham-eng560"
+  },
+  "metadata": {
+    "description": "Official AGEX plugin marketplace for Claude Code",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "agex",
+      "description": "Master Agent Orchestrator — 12 specialized agents, 8 slash commands",
+      "version": "1.0.0",
+      "source": "./",
+      "author": {
+        "name": "AGEX Contributors"
+      },
+      "homepage": "https://github.com/saksham-eng560/agex#readme",
+      "repository": "https://github.com/saksham-eng560/agex",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "orchestrator",
+        "multi-agent",
+        "claude-code",
+        "subagents",
+        "automation",
+        "code-review",
+        "testing"
+      ],
+      "category": "development"
+    }
+  ]
+}

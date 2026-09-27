@@ -1,0 +1,62 @@
+name: Feature request
+description: Suggest a new capability or an improvement to AGEX.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping shape AGEX. Please search [existing issues](https://github.com/saksham-eng560/agex/issues?q=is%3Aissue) first. For large changes, such as a new agent or a change to an artifact schema, agreeing on the design in this issue before writing code saves everyone time.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What are you trying to do, and what gets in the way today? Describe the situation rather than the solution.
+      placeholder: "I regularly ask AGEX to upgrade one dependency across several services, and I have to describe the same steps every time because no command covers that workflow."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: How should AGEX behave? Include the agents, commands, or artifacts involved and any new fields or flags.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - new agent
+        - new command
+        - orchestration logic
+        - handoff protocol
+        - installer
+        - hooks
+        - docs
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches or workarounds you considered, such as a custom agent or a routing note in your project's CLAUDE.md, and why they are not enough.
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Links, transcript excerpts, example artifacts, or anything else that helps explain the request. Remove secrets and private code.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to submit a pull request for this feature.
+          required: false

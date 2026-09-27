@@ -1,0 +1,11 @@
+# CODEOWNERS for AGEX
+#
+# Code owners are requested for review automatically when a pull request
+# changes files that match a pattern below. Each line is a file pattern
+# followed by one or more GitHub users or teams; the last matching pattern
+# takes precedence.
+#
+# Reference: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repository
+* @saksham-eng560

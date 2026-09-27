@@ -1,0 +1,28 @@
+{
+  "description": "AGEX session logging: records session starts and file modifications to .agex/session.log in the current project. Set AGEX_DISABLE_LOG=1 to disable.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/agex-log.sh\" session-start",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/agex-log.sh\" file-modified",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

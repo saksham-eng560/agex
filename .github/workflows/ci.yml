@@ -1,0 +1,378 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Repository validator
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run scripts/validate.py
+        run: python3 scripts/validate.py
+
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Show the ShellCheck version
+        run: shellcheck --version
+
+      # Warnings and errors fail the job; style-level notes do not.
+      - name: Lint the installer and the hook script
+        run: shellcheck --severity=warning install.sh hooks/scripts/agex-log.sh
+
+  plugin-manifest:
+    name: Plugin manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Validation runs offline and needs no API key.
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+      DISABLE_AUTOUPDATER: "1"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Show the Claude Code version
+        run: claude --version
+
+      - name: Validate the plugin, its agents and commands, and the marketplace
+        run: claude plugin validate --strict .
+
+  install-smoke:
+    name: install.sh smoke test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      NO_COLOR: "1"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Point CLAUDE_HOME at a temporary directory
+        run: echo "CLAUDE_HOME=$RUNNER_TEMP/claude" >> "$GITHUB_ENV"
+
+      - name: Write the verification helper
+        run: |
+          cat > "$RUNNER_TEMP/verify-install.sh" <<'EOF'
+          #!/bin/sh
+          # verify-install.sh installed|uninstalled|snapshot
+          set -eu
+          workspace="$(cd "$GITHUB_WORKSPACE" && pwd -P)"
+          fail() { echo "::error::$*"; exit 1; }
+          case "$1" in
+            installed)
+              for kind in agents commands; do
+                expected="$(ls "$workspace/.claude/$kind/"*.md | wc -l | tr -d ' ')"
+                [ "$expected" -gt 0 ] || fail "the checkout has no $kind"
+                count=0
+                for link in "$CLAUDE_HOME/$kind/"*.md; do
+                  [ -L "$link" ] || fail "$link is not a symbolic link"
+                  [ -f "$link" ] || fail "$link does not resolve to a file"
+                  target="$(readlink "$link")"
+                  case "$target" in
+                    "$workspace/.claude/$kind/"*) ;;
+                    *) fail "$link points to $target, not into $workspace/.claude/$kind" ;;
+                  esac
+                  count=$((count + 1))
+                done
+                [ "$count" -eq "$expected" ] || fail "expected $expected $kind links, found $count"
+                echo "OK: $count $kind links resolve into $workspace/.claude/$kind"
+              done
+              [ -f "$CLAUDE_HOME/.agex-manifest" ] || fail "the install manifest $CLAUDE_HOME/.agex-manifest is missing"
+              echo "OK: install manifest present"
+              ;;
+            uninstalled)
+              leftovers="$(find "$CLAUDE_HOME" \( -type f -o -type l \) -print)"
+              [ -z "$leftovers" ] || fail "left behind after uninstall: $leftovers"
+              echo "OK: no links, backups, or manifest remain in $CLAUDE_HOME"
+              ;;
+            snapshot)
+              for link in "$CLAUDE_HOME/agents/"*.md "$CLAUDE_HOME/commands/"*.md; do
+                printf '%s -> %s\n' "$link" "$(readlink "$link")"
+              done
+              cat "$CLAUDE_HOME/.agex-manifest"
+              ;;
+            *)
+              fail "unknown mode: $1"
+              ;;
+          esac
+          EOF
+
+      - name: Show the installer help
+        run: /bin/bash install.sh --help
+
+      - name: Install into the temporary CLAUDE_HOME
+        run: /bin/bash install.sh --no-update
+
+      - name: Verify every agent and command is linked
+        run: sh "$RUNNER_TEMP/verify-install.sh" installed
+
+      - name: Re-run the installer and verify nothing changed
+        run: |
+          before="$(sh "$RUNNER_TEMP/verify-install.sh" snapshot)"
+          /bin/bash install.sh --no-update
+          sh "$RUNNER_TEMP/verify-install.sh" installed
+          after="$(sh "$RUNNER_TEMP/verify-install.sh" snapshot)"
+          if [ "$before" != "$after" ]; then
+            echo "::error::a second install changed the links or the manifest"
+            diff <(printf '%s\n' "$before") <(printf '%s\n' "$after") || true
+            exit 1
+          fi
+          echo "OK: the second install was idempotent"
+
+      - name: Uninstall
+        run: /bin/bash install.sh --uninstall
+
+      - name: Verify the uninstall removed links and manifest
+        run: sh "$RUNNER_TEMP/verify-install.sh" uninstalled
+
+      - name: Install with --force over a user file, then restore it on uninstall
+        run: |
+          mkdir -p "$CLAUDE_HOME/agents"
+          printf 'user-owned planner\n' > "$CLAUDE_HOME/agents/planner.md"
+          /bin/bash install.sh --no-update --force
+          sh "$RUNNER_TEMP/verify-install.sh" installed
+          backup="$(find "$CLAUDE_HOME/.agex-backup" -type f -name planner.md)"
+          if [ -z "$backup" ] || [ "$(cat "$backup")" != "user-owned planner" ]; then
+            echo "::error::--force did not back up the existing planner.md"
+            exit 1
+          fi
+          /bin/bash install.sh --uninstall
+          if [ -L "$CLAUDE_HOME/agents/planner.md" ] || [ "$(cat "$CLAUDE_HOME/agents/planner.md")" != "user-owned planner" ]; then
+            echo "::error::--uninstall did not restore the user's planner.md"
+            exit 1
+          fi
+          rm "$CLAUDE_HOME/agents/planner.md"
+          sh "$RUNNER_TEMP/verify-install.sh" uninstalled
+
+      - name: Verify the checkout was not modified
+        run: |
+          changes="$(git status --porcelain --untracked-files=all)"
+          if [ -n "$changes" ]; then
+            echo "::error::the installer modified the checkout"
+            echo "$changes"
+            exit 1
+          fi
+
+  hooks:
+    name: Hook logger
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Log a session start and a file modification
+        run: |
+          project="$RUNNER_TEMP/hook-project"
+          mkdir -p "$project/src"
+          export CLAUDE_PROJECT_DIR="$project"
+          printf '{"session_id":"ci","hook_event_name":"SessionStart","source":"startup","cwd":"%s"}' "$project" |
+            sh hooks/scripts/agex-log.sh session-start
+          printf '{"session_id":"ci","hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"%s/src/app.ts"},"cwd":"%s"}' "$project" "$project" |
+            sh hooks/scripts/agex-log.sh file-modified
+
+      - name: Check the session log and the ignore file
+        run: |
+          project="$RUNNER_TEMP/hook-project"
+          cat "$project/.agex/session.log"
+          grep -q 'SESSION_START source=startup' "$project/.agex/session.log"
+          grep -q 'FILE_MODIFIED tool=Edit path=src/app.ts' "$project/.agex/session.log"
+          test -f "$project/.agex/.gitignore"
+          test "$(cat "$project/.agex/.gitignore")" = "*"
+
+      - name: Log through the sed fallback, without jq or python3
+        run: |
+          project="$RUNNER_TEMP/hook-project"
+          bin="$RUNNER_TEMP/minimal-bin"
+          mkdir -p "$bin"
+          for tool in cat tr sed mkdir wc mv date; do
+            ln -sf "$(command -v "$tool")" "$bin/$tool"
+          done
+          printf '{"tool_name":"Write","tool_input":{"file_path":"%s/src/util.ts"}}' "$project" |
+            env PATH="$bin" CLAUDE_PROJECT_DIR="$project" /bin/sh hooks/scripts/agex-log.sh file-modified
+          last="$(tail -n 1 "$project/.agex/session.log")"
+          echo "$last"
+          case "$last" in
+            *"FILE_MODIFIED tool=Write path=src/util.ts") ;;
+            *) echo "::error::the sed fallback did not log the Write event"; exit 1 ;;
+          esac
+
+      - name: Respect AGEX_DISABLE_LOG and always exit 0
+        run: |
+          project="$RUNNER_TEMP/hook-project"
+          before="$(wc -l < "$project/.agex/session.log")"
+          echo '{}' | AGEX_DISABLE_LOG=1 CLAUDE_PROJECT_DIR="$project" sh hooks/scripts/agex-log.sh session-start
+          after="$(wc -l < "$project/.agex/session.log")"
+          test "$before" -eq "$after"
+          echo '{}' | CLAUDE_PROJECT_DIR=/proc/agex-unwritable sh hooks/scripts/agex-log.sh session-start
+          CLAUDE_PROJECT_DIR="$project" sh hooks/scripts/agex-log.sh unknown-event < /dev/null
+          test "$(wc -l < "$project/.agex/session.log")" -eq "$after"
+          echo "OK: disabled logging and unknown events wrote nothing, and an unwritable project still exits 0"
+
+  install-windows:
+    name: install.ps1 smoke test (${{ matrix.label }})
+    runs-on: windows-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shell: pwsh
+            label: PowerShell 7
+          - shell: powershell
+            label: Windows PowerShell 5.1
+    env:
+      NO_COLOR: "1"
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Show the PowerShell version
+        run: $PSVersionTable.PSVersion.ToString()
+
+      - name: Point CLAUDE_HOME at a temporary directory
+        shell: pwsh
+        run: Add-Content -Path $env:GITHUB_ENV -Value "CLAUDE_HOME=$env:RUNNER_TEMP\claude"
+
+      # install.ps1 creates symbolic links when Windows permits them and copies
+      # otherwise, so the helper accepts either and reports which one it found.
+      - name: Write the verification helper
+        shell: pwsh
+        run: |
+          Set-Content -Path (Join-Path $env:RUNNER_TEMP 'verify-install.ps1') -Value @'
+          param([Parameter(Mandatory)][ValidateSet('installed', 'uninstalled')][string]$Mode)
+          $ErrorActionPreference = 'Stop'
+          if ($Mode -eq 'installed') {
+              $links = 0
+              $copies = 0
+              foreach ($kind in 'agents', 'commands') {
+                  $sources = @(Get-ChildItem -LiteralPath (Join-Path $env:GITHUB_WORKSPACE ".claude\$kind") -Filter '*.md' -File)
+                  if ($sources.Count -eq 0) { throw "The checkout has no $kind." }
+                  foreach ($source in $sources) {
+                      $installed = Join-Path $env:CLAUDE_HOME "$kind\$($source.Name)"
+                      if (-not (Test-Path -LiteralPath $installed -PathType Leaf)) { throw "$installed is missing." }
+                      if ((Get-FileHash -LiteralPath $installed).Hash -ne (Get-FileHash -LiteralPath $source.FullName).Hash) {
+                          throw "$installed does not match $($source.FullName)."
+                      }
+                      if ([string](Get-Item -LiteralPath $installed -Force).LinkType -eq 'SymbolicLink') { $links++ } else { $copies++ }
+                  }
+                  Write-Host "OK: $($sources.Count) $kind installed"
+              }
+              $manifest = Join-Path $env:CLAUDE_HOME '.agex-manifest'
+              if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) { throw "The install manifest $manifest is missing." }
+              Write-Host "OK: install manifest present ($links symbolic links, $copies copies)"
+          }
+          else {
+              foreach ($kind in 'agents', 'commands') {
+                  foreach ($source in @(Get-ChildItem -LiteralPath (Join-Path $env:GITHUB_WORKSPACE ".claude\$kind") -Filter '*.md' -File)) {
+                      $installed = Join-Path $env:CLAUDE_HOME "$kind\$($source.Name)"
+                      if (Test-Path -LiteralPath $installed) { throw "$installed is still present after uninstall." }
+                  }
+              }
+              $state = @(Get-ChildItem -LiteralPath $env:CLAUDE_HOME -Filter '.agex*' -Force -ErrorAction SilentlyContinue)
+              if ($state.Count -gt 0) { throw "Installer state left behind: $($state.FullName -join ', ')" }
+              Write-Host "OK: no AGEX agents, commands, manifest, or backups remain in $env:CLAUDE_HOME"
+          }
+          '@
+
+      - name: Show the installer help
+        run: ./install.ps1 -Help
+
+      - name: Install into the temporary CLAUDE_HOME
+        run: ./install.ps1 -NoUpdate
+
+      - name: Verify every agent and command is installed
+        run: '& (Join-Path $env:RUNNER_TEMP "verify-install.ps1") installed'
+
+      - name: Re-run the installer and verify nothing changed
+        run: |
+          $manifest = Join-Path $env:CLAUDE_HOME '.agex-manifest'
+          $before = [System.IO.File]::ReadAllText($manifest)
+          ./install.ps1 -NoUpdate
+          if ($LASTEXITCODE -ne 0) { throw "install.ps1 -NoUpdate exited with $LASTEXITCODE" }
+          & (Join-Path $env:RUNNER_TEMP 'verify-install.ps1') installed
+          $after = [System.IO.File]::ReadAllText($manifest)
+          if ($before -ne $after) { throw "A second install changed the manifest.`nBefore:`n$before`nAfter:`n$after" }
+          Write-Host 'OK: the second install was idempotent'
+
+      - name: Uninstall
+        run: ./install.ps1 -Uninstall
+
+      - name: Verify the uninstall removed everything
+        run: '& (Join-Path $env:RUNNER_TEMP "verify-install.ps1") uninstalled'
+
+      - name: Install with -Force over a user file, then restore it on uninstall
+        run: |
+          $verify = Join-Path $env:RUNNER_TEMP 'verify-install.ps1'
+          $planner = Join-Path $env:CLAUDE_HOME 'agents\planner.md'
+          $null = New-Item -ItemType Directory -Force -Path (Join-Path $env:CLAUDE_HOME 'agents')
+          Set-Content -LiteralPath $planner -Value 'user-owned planner'
+          ./install.ps1 -NoUpdate -Force
+          if ($LASTEXITCODE -ne 0) { throw "install.ps1 -Force exited with $LASTEXITCODE" }
+          & $verify installed
+          $backup = @(Get-ChildItem -LiteralPath (Join-Path $env:CLAUDE_HOME '.agex-backup') -Recurse -File -Filter 'planner.md')
+          if ($backup.Count -ne 1 -or (Get-Content -LiteralPath $backup[0].FullName -Raw).Trim() -ne 'user-owned planner') {
+              throw '-Force did not back up the existing planner.md'
+          }
+          ./install.ps1 -Uninstall
+          if ($LASTEXITCODE -ne 0) { throw "install.ps1 -Uninstall exited with $LASTEXITCODE" }
+          $restored = Get-Item -LiteralPath $planner -Force
+          if ([string]$restored.LinkType -or (Get-Content -LiteralPath $planner -Raw).Trim() -ne 'user-owned planner') {
+              throw '-Uninstall did not restore the user planner.md'
+          }
+          Remove-Item -LiteralPath $planner
+          & $verify uninstalled
+
+      - name: Verify the checkout was not modified
+        run: |
+          $changes = @(git status --porcelain --untracked-files=all)
+          if ($LASTEXITCODE -ne 0) { throw "git status exited with $LASTEXITCODE" }
+          if ($changes.Count -gt 0) { throw "The installer modified the checkout:`n$($changes -join "`n")" }
+          Write-Host 'OK: the checkout is unchanged'

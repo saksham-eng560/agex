@@ -1,0 +1,48 @@
+{
+  "name": "agex",
+  "version": "1.0.0",
+  "description": "AGEX — Master Agent Orchestrator for Claude Code. Deploy intelligent sub-agents that work together to accomplish any coding task.",
+  "author": {
+    "name": "AGEX Contributors",
+    "url": "https://github.com/saksham-eng560/agex"
+  },
+  "homepage": "https://github.com/saksham-eng560/agex#readme",
+  "repository": "https://github.com/saksham-eng560/agex",
+  "license": "MIT",
+  "keywords": [
+    "agent",
+    "orchestrator",
+    "multi-agent",
+    "claude-code",
+    "subagents",
+    "automation",
+    "code-review",
+    "testing"
+  ],
+  "defaultEnabled": true,
+  "agents": [
+    "./.claude/agents/orchestrator.md",
+    "./.claude/agents/researcher.md",
+    "./.claude/agents/architect.md",
+    "./.claude/agents/coder.md",
+    "./.claude/agents/reviewer.md",
+    "./.claude/agents/tester.md",
+    "./.claude/agents/debugger.md",
+    "./.claude/agents/documenter.md",
+    "./.claude/agents/devops.md",
+    "./.claude/agents/refactor.md",
+    "./.claude/agents/security.md",
+    "./.claude/agents/planner.md"
+  ],
+  "commands": [
+    "./.claude/commands/agex.md",
+    "./.claude/commands/agex-plan.md",
+    "./.claude/commands/agex-status.md",
+    "./.claude/commands/agex-research.md",
+    "./.claude/commands/agex-review.md",
+    "./.claude/commands/agex-test.md",
+    "./.claude/commands/agex-secure.md",
+    "./.claude/commands/agex-docs.md"
+  ],
+  "hooks": "./hooks/agex-hooks.json"
+}

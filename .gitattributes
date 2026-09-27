@@ -1,0 +1,40 @@
+# Normalize line endings: every text file is stored and checked out with LF,
+# on every platform, so diffs stay clean and scripts run unchanged.
+* text=auto eol=lf
+
+# Shell scripts break with "bad interpreter" errors if they get CRLF endings.
+*.sh text eol=lf
+
+# PowerShell reads LF line endings without problems, so install.ps1 keeps the
+# same convention as the rest of the repository.
+*.ps1 text eol=lf
+
+# Other text formats used in this repository
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.py text eol=lf
+*.svg text eol=lf
+.editorconfig text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+CODEOWNERS text eol=lf
+LICENSE text eol=lf
+
+# Binary files: never normalize or diff as text
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.woff binary
+*.woff2 binary
+
+# Mark documentation for GitHub language statistics
+docs/** linguist-documentation
+examples/** linguist-documentation

@@ -1,0 +1,117 @@
+name: Bug report
+description: Report something in AGEX that does not work as documented.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please search [existing issues](https://github.com/saksham-eng560/agex/issues?q=is%3Aissue) first and check the [FAQ](https://github.com/saksham-eng560/agex/blob/main/docs/FAQ.md), which lists known limitations.
+
+        **Do not report security vulnerabilities here.** Use [private vulnerability reporting](https://github.com/saksham-eng560/agex/security/advisories/new) instead.
+
+  - type: input
+    id: agex-version
+    attributes:
+      label: AGEX version
+      description: |
+        The `version` in `.claude-plugin/plugin.json` of your AGEX copy, or the version shown by `claude plugin list` for plugin installs. For script installs, add the commit from `git -C ~/.agex rev-parse --short HEAD`.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: claude-code-version
+    attributes:
+      label: Claude Code version
+      description: The output of `claude --version`.
+      placeholder: "2.1.283 (Claude Code)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install method
+      description: How did you install AGEX?
+      options:
+        - Plugin
+        - install.sh
+        - install.ps1
+        - Manual clone
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - WSL
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      description: Select every component involved.
+      multiple: true
+      options:
+        - orchestrator/agents
+        - slash commands
+        - installer
+        - hooks/session log
+        - plugin manifest
+        - docs
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug. Include the command or prompt you used, which agent or command misbehaved, and any artifact it produced (for example a TestReport or ReviewVerdict).
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps from a fresh session, including the type of project you ran AGEX in.
+      placeholder: |
+        1. In a Node.js project with a Jest test suite, start `claude`.
+        2. Run `/agex add input validation to the signup route`.
+        3. Observe that the tester and coder keep cycling after the third failing TestReport.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: What you expected to happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Paste relevant terminal output, error messages, or transcript excerpts. For hook, orchestration, or file-change issues, include the last lines of `.agex/session.log` in your project (`tail -n 50 .agex/session.log`). This field is formatted as code automatically, so no backticks are needed.
+      render: shell
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a report of this bug.
+          required: true
+        - label: I removed secrets, tokens, credentials, and private code from the logs and descriptions above.
+          required: true

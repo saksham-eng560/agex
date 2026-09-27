@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/saksham-eng560/agex/security/advisories/new
+    about: Report security issues privately through GitHub private vulnerability reporting. Please do not open a public issue.
+  - name: Documentation
+    url: https://github.com/saksham-eng560/agex/tree/main/docs
+    about: Guides for installation, the agents, the handoff protocol, and customization.
+  - name: FAQ
+    url: https://github.com/saksham-eng560/agex/blob/main/docs/FAQ.md
+    about: Answers to common questions, including known limitations.
