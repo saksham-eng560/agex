@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Show the ShellCheck version
         run: shellcheck --version
@@ -55,7 +55,7 @@ jobs:
       DISABLE_AUTOUPDATER: "1"
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v4
@@ -86,7 +86,7 @@ jobs:
         shell: bash
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Point CLAUDE_HOME at a temporary directory
         run: echo "CLAUDE_HOME=$RUNNER_TEMP/claude" >> "$GITHUB_ENV"
@@ -203,7 +203,7 @@ jobs:
         shell: bash
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Log a session start and a file modification
         run: |
@@ -272,7 +272,7 @@ jobs:
         shell: ${{ matrix.shell }}
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Show the PowerShell version
         run: $PSVersionTable.PSVersion.ToString()
